@@ -20,6 +20,11 @@
 # production
 /build
 
+# persisted app data (cards, transactions, subscriptions)
+/data
+# backend persisted auth (registered emails)
+backend/data
+
 # misc
 .DS_Store
 *.pem

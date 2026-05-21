@@ -23,6 +23,8 @@ export function FileUpload({
   function handleFile(file: File | null) {
     if (!file) return;
     onFileSelect(file);
+    // Reset so the same file can be chosen again after selecting a card.
+    if (inputRef.current) inputRef.current.value = "";
   }
 
   return (

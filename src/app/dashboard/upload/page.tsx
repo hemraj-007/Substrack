@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useFetch } from "@/hooks/useFetch";
 import { cardsApi, transactionsApi, getApiErrorMessage } from "@/lib/api";
 import { FileUpload } from "@/components/FileUpload";
@@ -13,29 +13,47 @@ export default function UploadPage() {
     { deps: [] }
   );
   const [cardId, setCardId] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number | undefined>(undefined);
   const [result, setResult] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  async function handleFile(file: File) {
-    if (!cardId) {
-      setError("Select a card first.");
-      return;
-    }
+  const runUpload = useCallback(async (selectedCardId: string, file: File) => {
     setError("");
     setResult(null);
     setUploading(true);
     setProgress(50);
     try {
-      const { data } = await transactionsApi.upload(cardId, file);
+      const { data } = await transactionsApi.upload(selectedCardId, file);
       setProgress(100);
       setResult(data.imported);
+      setPendingFile(null);
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, { context: "upload", defaultMessage: "Upload failed." }));
     } finally {
       setUploading(false);
       setProgress(undefined);
+    }
+  }, []);
+
+  async function handleFile(file: File) {
+    if (!cardId) {
+      setPendingFile(file);
+      setError("Select a card first.");
+      return;
+    }
+    await runUpload(cardId, file);
+  }
+
+  function handleCardChange(nextCardId: string) {
+    setCardId(nextCardId);
+    if (!nextCardId) return;
+    setError("");
+    if (pendingFile) {
+      const file = pendingFile;
+      setPendingFile(null);
+      void runUpload(nextCardId, file);
     }
   }
 
@@ -67,7 +85,7 @@ export default function UploadPage() {
           <select
             id="card"
             value={cardId}
-            onChange={(e) => setCardId(e.target.value)}
+            onChange={(e) => handleCardChange(e.target.value)}
             className="surface-input w-full px-3 py-2.5"
           >
             <option value="">Select a card</option>

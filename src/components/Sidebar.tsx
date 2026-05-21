@@ -83,7 +83,7 @@ function LogoutIcon({ className }: { className?: string }) {
 }
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname();       
   const router = useRouter();
   const { logout } = useAuth();
 

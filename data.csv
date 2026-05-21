@@ -1,0 +1,95 @@
+Date,Description,Amount,Type,Category
+2026-03-01,Netflix Subscription,-499,Debit,OTT
+2026-03-01,Starbucks Coffee,-320,Debit,Food
+2026-03-02,Spotify Subscription,-119,Debit,OTT
+2026-03-02,Salary Credit,50000,Credit,Income
+2026-03-03,Amazon Prime Subscription,-1499,Debit,OTT
+2026-03-03,Swiggy Order,-450,Debit,Food
+2026-03-04,Zomato Order,-380,Debit,Food
+2026-03-04,Electricity Bill,-2100,Debit,Bills
+2026-03-05,YouTube Premium,-129,Debit,OTT
+2026-03-05,Uber Ride,-220,Debit,Transport
+2026-03-06,Gym Membership,-1800,Debit,Fitness
+2026-03-06,Petrol Pump,-1500,Debit,Transport
+2026-03-07,Google One Storage,-130,Debit,SaaS
+2026-03-07,Dominos Pizza,-699,Debit,Food
+2026-03-08,Apple Music,-99,Debit,OTT
+2026-03-08,Book Purchase,-499,Debit,Shopping
+2026-03-09,Microsoft 365,-489,Debit,SaaS
+2026-03-09,Flipkart Shopping,-1299,Debit,Shopping
+2026-03-10,Hotstar Subscription,-899,Debit,OTT
+2026-03-10,Uber Eats,-350,Debit,Food
+2026-03-11,Amazon Shopping,-999,Debit,Shopping
+2026-03-11,Water Bill,-600,Debit,Bills
+2026-03-12,Adobe Creative Cloud,-1675,Debit,SaaS
+2026-03-12,McDonald's,-450,Debit,Food
+2026-03-13,OLA Ride,-280,Debit,Transport
+2026-03-13,Recharge Mobile,-299,Debit,Bills
+2026-03-14,Netflix Subscription,-499,Debit,OTT
+2026-03-14,Swiggy Order,-520,Debit,Food
+2026-03-15,Spotify Subscription,-119,Debit,OTT
+2026-03-15,Clothing Store,-2200,Debit,Shopping
+2026-03-16,Amazon Prime Subscription,-1499,Debit,OTT
+2026-03-16,Groceries,-1800,Debit,Food
+2026-03-17,YouTube Premium,-129,Debit,OTT
+2026-03-17,Uber Ride,-300,Debit,Transport
+2026-03-18,Google One Storage,-130,Debit,SaaS
+2026-03-18,Zomato Order,-410,Debit,Food
+2026-03-19,Apple Music,-99,Debit,OTT
+2026-03-19,Book Store,-350,Debit,Shopping
+2026-03-20,Microsoft 365,-489,Debit,SaaS
+2026-03-20,Flipkart Purchase,-1599,Debit,Shopping
+2026-03-21,Hotstar Subscription,-899,Debit,OTT
+2026-03-21,Uber Eats,-275,Debit,Food
+2026-03-22,Electricity Bill,-2200,Debit,Bills
+2026-03-22,Petrol Pump,-1400,Debit,Transport
+2026-03-23,Adobe Creative Cloud,-1675,Debit,SaaS
+2026-03-23,Dominos,-650,Debit,Food
+2026-03-24,OLA Ride,-300,Debit,Transport
+2026-03-24,Recharge Mobile,-249,Debit,Bills
+2026-03-25,Netflix Subscription,-499,Debit,OTT
+2026-03-25,Swiggy Order,-480,Debit,Food
+2026-03-26,Spotify Subscription,-119,Debit,OTT
+2026-03-26,Clothing Store,-1900,Debit,Shopping
+2026-03-27,Amazon Prime Subscription,-1499,Debit,OTT
+2026-03-27,Groceries,-2100,Debit,Food
+2026-03-28,YouTube Premium,-129,Debit,OTT
+2026-03-28,Uber Ride,-260,Debit,Transport
+2026-03-29,Google One Storage,-130,Debit,SaaS
+2026-03-29,Zomato Order,-390,Debit,Food
+2026-03-30,Apple Music,-99,Debit,OTT
+2026-03-30,Book Purchase,-420,Debit,Shopping
+2026-03-31,Microsoft 365,-489,Debit,SaaS
+2026-03-31,Flipkart Shopping,-1750,Debit,Shopping
+2026-04-01,Hotstar Subscription,-899,Debit,OTT
+2026-04-01,Uber Eats,-320,Debit,Food
+2026-04-02,Salary Credit,50000,Credit,Income
+2026-04-02,Electricity Bill,-2000,Debit,Bills
+2026-04-03,Petrol Pump,-1300,Debit,Transport
+2026-04-03,Adobe Creative Cloud,-1675,Debit,SaaS
+2026-04-04,Dominos Pizza,-720,Debit,Food
+2026-04-04,OLA Ride,-240,Debit,Transport
+2026-04-05,Recharge Mobile,-299,Debit,Bills
+2026-04-05,Netflix Subscription,-499,Debit,OTT
+2026-04-06,Swiggy Order,-530,Debit,Food
+2026-04-06,Spotify Subscription,-119,Debit,OTT
+2026-04-07,Clothing Store,-2100,Debit,Shopping
+2026-04-07,Amazon Prime Subscription,-1499,Debit,OTT
+2026-04-08,Groceries,-1700,Debit,Food
+2026-04-08,YouTube Premium,-129,Debit,OTT
+2026-04-09,Uber Ride,-280,Debit,Transport
+2026-04-09,Google One Storage,-130,Debit,SaaS
+2026-04-10,Zomato Order,-410,Debit,Food
+2026-04-10,Apple Music,-99,Debit,OTT
+2026-04-11,Book Store,-380,Debit,Shopping
+2026-04-11,Microsoft 365,-489,Debit,SaaS
+2026-04-12,Flipkart Purchase,-1650,Debit,Shopping
+2026-04-12,Hotstar Subscription,-899,Debit,OTT
+2026-04-13,Uber Eats,-300,Debit,Food
+2026-04-13,Electricity Bill,-2100,Debit,Bills
+2026-04-14,Petrol Pump,-1500,Debit,Transport
+2026-04-14,Adobe Creative Cloud,-1675,Debit,SaaS
+2026-04-15,Dominos,-680,Debit,Food
+2026-04-15,OLA Ride,-260,Debit,Transport
+2026-04-16,Recharge Mobile,-249,Debit,Bills
+2026-04-16,Netflix Subscription,-499,Debit,OTT

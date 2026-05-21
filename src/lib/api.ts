@@ -107,7 +107,7 @@ export const transactionsApi = {
     form.append("file", file); // must be "file" per backend upload.single("file")
     form.append("cardId", cardId);
     return api.post<{ imported: number }>("/api/transactions/upload", form, {
-      headers: { "Content-Type": "multipart/form-data" },
+      headers: { "Content-Type": false as unknown as string },
     });
   },
 };

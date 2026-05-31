@@ -5,6 +5,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { subscriptionsApi, getApiErrorMessage, type Subscription } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { GlassCard } from "@/components/GlassCard";
+import { LoadingState } from "@/components/Loader";
 import { Pagination } from "@/components/Pagination";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
@@ -23,6 +24,8 @@ export default function SubscriptionsPage() {
   const q = (searchParams.get("q") ?? "").trim().toLowerCase();
   const [statusFilter, setStatusFilter] = useState(initialFilter || "ACTIVE");
   const [detecting, setDetecting] = useState(false);
+  const [detectMessage, setDetectMessage] = useState("");
+  const [detectError, setDetectError] = useState("");
   const [page, setPage] = useState(1);
 
   const fetcher = useCallback(
@@ -35,9 +38,23 @@ export default function SubscriptionsPage() {
 
   async function handleDetect() {
     setDetecting(true);
+    setDetectMessage("");
+    setDetectError("");
     try {
-      await subscriptionsApi.detect();
-      refetch();
+      const { data } = await subscriptionsApi.detect();
+      const detectedCount = Array.isArray(data) ? data.length : 0;
+      await refetch();
+      setDetectMessage(
+        detectedCount > 0
+          ? `Detected ${detectedCount} active subscription${detectedCount === 1 ? "" : "s"}.`
+          : "No subscription-like transactions were detected yet."
+      );
+    } catch (err: unknown) {
+      setDetectError(
+        getApiErrorMessage(err, {
+          defaultMessage: "Could not detect subscriptions. Check uploaded transactions and try again.",
+        })
+      );
     } finally {
       setDetecting(false);
     }
@@ -120,6 +137,20 @@ export default function SubscriptionsPage() {
         </div>
       </PageHeaderCard>
 
+      {(detectMessage || detectError) && (
+        <GlassCard className="p-4">
+          <p
+            className={`text-sm font-medium ${
+              detectError
+                ? "text-red-600 dark:text-red-400"
+                : "text-emerald-600 dark:text-emerald-400"
+            }`}
+          >
+            {detectError || detectMessage}
+          </p>
+        </GlassCard>
+      )}
+
       {isError ? (
         <GlassCard className="p-6 space-y-3">
           <p className="text-sm text-red-600 dark:text-red-400">
@@ -136,7 +167,9 @@ export default function SubscriptionsPage() {
           </button>
         </GlassCard>
       ) : isLoading ? (
-        <div className="text-[var(--muted)]">Loading subscriptions…</div>
+        <LoadingState
+          title="Loading subscriptions"
+        />
       ) : sortByNext.length === 0 ? (
         <GlassCard className="p-8 text-center">
           <p className="text-[var(--muted)]">
@@ -156,7 +189,11 @@ export default function SubscriptionsPage() {
                     {sub.merchant ?? "—"}
                   </p>
                   <p className="text-sm text-[var(--muted)]">
-                    ${Number(sub.amount ?? 0).toFixed(2)} · {(sub.frequency ?? "").toLowerCase()} · {String(sub.status ?? "").replace("_", " ")}
+                    {new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                      maximumFractionDigits: 2,
+                    }).format(Number(sub.amount ?? 0))} · {(sub.frequency ?? "").toLowerCase()} · {String(sub.status ?? "").replace("_", " ")}
                   </p>
                   {sub.lastCharged && (
                     <p className="text-xs text-[var(--muted)]">

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
 import { BottomNav } from "@/components/BottomNav";
+import { LoadingState } from "@/components/Loader";
 
 export function DashboardShell({
   children,
@@ -22,9 +23,10 @@ export function DashboardShell({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[var(--muted)]">Loading…</div>
-      </div>
+      <LoadingState
+        fullScreen
+        title="Loading workspace"
+      />
     );
   }
 

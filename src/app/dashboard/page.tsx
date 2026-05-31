@@ -5,6 +5,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { subscriptionsApi, transactionsApi } from "@/lib/api";
 import Link from "next/link";
 import { GlassCard, CardHeader } from "@/components/GlassCard";
+import { LoadingState } from "@/components/Loader";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
 const FILTERS = [
@@ -121,9 +122,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-[var(--muted)]">Loading dashboard…</div>
-      </div>
+      <LoadingState
+        title="Loading dashboard"
+      />
     );
   }
 

@@ -5,6 +5,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { cardsApi, transactionsApi, getApiErrorMessage } from "@/lib/api";
 import { FileUpload } from "@/components/FileUpload";
 import { GlassCard } from "@/components/GlassCard";
+import { LoadingState } from "@/components/Loader";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
 export default function UploadPage() {
@@ -59,9 +60,9 @@ export default function UploadPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-[var(--muted)]">Loading cards…</div>
-      </div>
+      <LoadingState
+        title="Loading upload"
+      />
     );
   }
 

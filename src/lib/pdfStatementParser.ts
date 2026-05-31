@@ -26,7 +26,9 @@ const DATE_PATTERNS = [
   /\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/,
   /\b(\d{1,2})[.\s](\d{1,2})[.\s](\d{2,4})\b/,
   /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[,\s]+(\d{2,4})\b/i,
+  /\b(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*-(\d{2,4})\b/i,
   /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})[,\s]+(\d{2,4})\b/i,
+  /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*-(\d{1,2})-(\d{2,4})\b/i,
   /\b(\d{1,2})(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{2,4})\b/i,
 ];
 
@@ -134,6 +136,7 @@ function pickAmountFromLine(line: string, dateRaw: string): string {
 
   const withDecimals = matches.filter((m) => /\.\d{1,2}\b/.test(m));
   const pool = withDecimals.length > 0 ? withDecimals : matches;
+  if (pool.length >= 2) return pool[pool.length - 2] ?? "";
   return pool[pool.length - 1] ?? "";
 }
 

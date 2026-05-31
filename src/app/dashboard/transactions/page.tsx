@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
 import { transactionsApi, type Transaction } from "@/lib/api";
 import { GlassCard } from "@/components/GlassCard";
+import { LoadingState } from "@/components/Loader";
 import { Pagination } from "@/components/Pagination";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
@@ -56,7 +57,9 @@ export default function TransactionsPage() {
       />
 
       {isLoading ? (
-        <div className="text-[var(--muted)]">Loading transactions…</div>
+        <LoadingState
+          title="Loading transactions"
+        />
       ) : list.length === 0 ? (
         <GlassCard className="p-8 text-center">
           <p className="text-[var(--muted)]">

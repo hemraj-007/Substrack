@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getApiErrorMessage } from "@/lib/api";
+import { LoadingState } from "@/components/Loader";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,17 +40,19 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[var(--muted)]">Loading…</div>
-      </div>
+      <LoadingState
+        fullScreen
+        title="Loading account"
+      />
     );
   }
 
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[var(--muted)]">Loading…</div>
-      </div>
+      <LoadingState
+        fullScreen
+        title="Opening workspace"
+      />
     );
   }
 

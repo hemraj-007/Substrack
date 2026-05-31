@@ -5,6 +5,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { alertsApi } from "@/lib/api";
 import { AlertItem } from "@/components/AlertItem";
 import { GlassCard } from "@/components/GlassCard";
+import { LoadingState } from "@/components/Loader";
 import { Pagination } from "@/components/Pagination";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
@@ -19,9 +20,9 @@ export default function AlertsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-[var(--muted)]">Loading alerts…</div>
-      </div>
+      <LoadingState
+        title="Loading alerts"
+      />
     );
   }
 

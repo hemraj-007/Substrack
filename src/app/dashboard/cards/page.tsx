@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useFetch } from "@/hooks/useFetch";
 import { cardsApi } from "@/lib/api";
-import { Loader } from "@/components/Loader";
+import { LoadingState } from "@/components/Loader";
 import { GlassCard } from "@/components/GlassCard";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
 
@@ -51,9 +51,9 @@ export default function CardsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <Loader />
-      </div>
+      <LoadingState
+        title="Loading cards"
+      />
     );
   }
 

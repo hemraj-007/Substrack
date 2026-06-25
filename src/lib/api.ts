@@ -113,19 +113,55 @@ export const transactionsApi = {
 };
 
 // Subscriptions
+export type SubscriptionCardRef = {
+  id: string;
+  last4: string;
+  bankName: string | null;
+  network: string | null;
+};
+
 export type Subscription = {
   id: string;
+  cardId: string;
   merchant: string;
   amount: number;
   frequency: string;
   status: string;
   lastCharged?: string;
   nextCharge?: string;
+  card?: SubscriptionCardRef;
   [key: string]: unknown;
 };
 
+export type SubscriptionListParams = {
+  cardIds?: string;
+};
+
+export type UpcomingRenewal = {
+  id: string;
+  cardId: string;
+  merchant: string;
+  amount: number;
+  nextCharge: string;
+  status: string;
+};
+
+export type SubscriptionSummary = {
+  currency: "INR";
+  monthlyTotal: number;
+  activeCount: number;
+  headline: string;
+  upcoming: {
+    next7Days: UpcomingRenewal[];
+    next30Days: UpcomingRenewal[];
+  };
+};
+
 export const subscriptionsApi = {
-  list: () => api.get<Subscription[]>("/api/subscriptions"),
+  list: (params?: SubscriptionListParams) =>
+    api.get<Subscription[]>("/api/subscriptions", { params }),
+  summary: (params?: SubscriptionListParams) =>
+    api.get<SubscriptionSummary>("/api/subscriptions/summary", { params }),
   detect: () =>
     api.post<Subscription[]>("/api/subscriptions/detect"),
 };

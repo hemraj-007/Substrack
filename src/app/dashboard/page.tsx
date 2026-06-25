@@ -7,6 +7,9 @@ import Link from "next/link";
 import { GlassCard, CardHeader } from "@/components/GlassCard";
 import { LoadingState } from "@/components/Loader";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
+import { RenewalCalendar } from "@/components/RenewalCalendar";
+import { formatInr } from "@/lib/currency";
+import { useCardFilterParams, useCardFilterQueryKey } from "@/hooks/useCardFilter";
 
 const FILTERS = [
   { value: "all", label: "All" },
@@ -15,42 +18,57 @@ const FILTERS = [
 ] as const;
 
 function useDashboardStats() {
+  const cardKey = useCardFilterQueryKey();
+  const cardParams = useCardFilterParams();
+
+  const summary = useFetch(
+    () => subscriptionsApi.summary(cardParams).then((r) => r.data),
+    { deps: [cardKey] }
+  );
   const subs = useFetch(
-    () => subscriptionsApi.list().then((r) => r.data),
-    { deps: [] }
+    () => subscriptionsApi.list(cardParams).then((r) => r.data),
+    { deps: [cardKey] }
   );
   const tx = useFetch(
     () => transactionsApi.list().then((r) => r.data),
     { deps: [] }
   );
 
+  const selectedIds =
+    cardParams?.cardIds?.split(",").filter(Boolean) ?? null;
+
   const subscriptions = subs.data ?? [];
-  const active = subscriptions.filter(
-    (s) => (s.status ?? "").toUpperCase() === "ACTIVE"
-  ).length;
+  const transactions = (tx.data ?? []).filter((row) => {
+    if (!selectedIds?.length) return true;
+    return selectedIds.includes(String(row.cardId ?? ""));
+  });
+
   const atRiskList = subscriptions.filter(
     (s) => (s.status ?? "").toUpperCase() === "AT_RISK"
   );
   const atRisk = atRiskList.length;
-  const monthlySpend =
-    subscriptions.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) || 0;
   const potentialSavings =
     atRiskList.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) || 0;
 
+  const monthlySpend = summary.data?.monthlyTotal ?? 0;
+  const activeSubscriptions = summary.data?.activeCount ?? 0;
+
   return {
+    summary: summary.data,
     subscriptions,
-    transactions: tx.data ?? [],
+    transactions,
     monthlySpend,
-    activeSubscriptions: active,
+    activeSubscriptions,
     atRiskSubscriptions: atRisk,
     potentialSavings,
-    loading: subs.isLoading || tx.isLoading,
-    error: subs.error || tx.error,
+    loading: summary.isLoading || subs.isLoading || tx.isLoading,
+    error: summary.error || subs.error || tx.error,
   };
 }
 
 export default function DashboardPage() {
   const {
+    summary,
     monthlySpend,
     activeSubscriptions,
     atRiskSubscriptions,
@@ -94,6 +112,7 @@ export default function DashboardPage() {
       Other: 0,
     };
     for (const sub of subscriptions) {
+      if ((sub.status ?? "").toUpperCase() !== "ACTIVE") continue;
       const merchant = String(sub.merchant ?? "").toLowerCase();
       const amount = Number(sub.amount) || 0;
       if (/netflix|spotify|prime|disney|hulu|youtube/.test(merchant)) {
@@ -159,13 +178,27 @@ export default function DashboardPage() {
         ))}
       </PageHeaderCard>
 
+      {summary && (
+        <GlassCard className="p-4 sm:p-6 border-[var(--accent)]/20 bg-gradient-to-br from-[var(--glass)] to-[var(--card)]">
+          <p className="text-lg sm:text-xl font-bold text-[var(--foreground)] leading-snug">
+            {summary.headline}
+          </p>
+          {summary.upcoming.next7Days.length > 0 && (
+            <p className="text-sm text-[var(--muted)] mt-2">
+              {summary.upcoming.next7Days.length} renewal
+              {summary.upcoming.next7Days.length === 1 ? "" : "s"} in the next 7 days
+            </p>
+          )}
+        </GlassCard>
+      )}
+
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <GlassCard className="metric-card p-4 sm:p-6">
           <p className="text-sm text-[var(--muted)]">Monthly Subscription Spend</p>
           <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            ${monthlySpend.toFixed(2)}
+            {formatInr(monthlySpend)}
           </p>
-          <p className="text-xs text-[var(--muted)] mt-1 sm:mt-2">Based on detected subscriptions</p>
+          <p className="text-xs text-[var(--muted)] mt-1 sm:mt-2">Active subscriptions only</p>
         </GlassCard>
         <GlassCard className="metric-card p-4 sm:p-6">
           <p className="text-sm text-[var(--muted)]">Active Subscriptions</p>
@@ -196,13 +229,29 @@ export default function DashboardPage() {
         <GlassCard className="metric-card p-4 sm:p-6">
           <p className="text-sm text-[var(--muted)]">Potential Savings</p>
           <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            ${potentialSavings.toFixed(2)}
+            {formatInr(potentialSavings)}
           </p>
           <p className="text-xs text-[var(--muted)] mt-1 sm:mt-2">
             Estimated from at-risk recurring charges
           </p>
         </GlassCard>
       </div>
+
+      {summary && (
+        <GlassCard className="p-4 sm:p-6">
+          <CardHeader
+            title="Renewal calendar"
+            viewAllHref="/dashboard/subscriptions"
+          />
+          <p className="text-sm text-[var(--muted)] mb-4 -mt-2">
+            Upcoming charges based on detected billing cycles
+          </p>
+          <RenewalCalendar
+            next7Days={summary.upcoming.next7Days}
+            next30Days={summary.upcoming.next30Days}
+          />
+        </GlassCard>
+      )}
 
       <div className="grid gap-4 grid-cols-1 xl:grid-cols-3">
         <GlassCard className="p-4 sm:p-6 xl:col-span-2">
@@ -257,7 +306,7 @@ export default function DashboardPage() {
                 ? (() => {
                     const point = trend.find((t) => t.key === hoveredMonth);
                     return point
-                      ? `${point.label}: $${point.amount.toFixed(2)} total spend`
+                      ? `${point.label}: ${formatInr(point.amount)} total card spend`
                       : "Hover over a point to inspect month-by-month spend.";
                   })()
                 : "Hover over a point to inspect month-by-month spend."}
@@ -269,15 +318,15 @@ export default function DashboardPage() {
           <CardHeader title="Contextual Insights" viewAllHref="/dashboard/alerts" />
           <div className="space-y-3 sm:space-y-4 text-sm">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
-              <p className="text-[var(--muted)]">Average monthly spend</p>
+              <p className="text-[var(--muted)]">Average monthly card spend</p>
               <p className="mt-1 text-xl font-bold text-[var(--foreground)]">
-                ${avgMonthly.toFixed(2)}
+                {formatInr(avgMonthly)}
               </p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
-              <p className="text-[var(--muted)]">High-priority renewals</p>
+              <p className="text-[var(--muted)]">Renewals in next 7 days</p>
               <p className="mt-1 text-xl font-bold text-[var(--foreground)]">
-                {atRiskSubscriptions}
+                {summary?.upcoming.next7Days.length ?? 0}
               </p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
@@ -314,7 +363,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[var(--foreground)]">{item.name}</span>
                   <span className="font-semibold text-[var(--foreground)]">
-                    ${item.amount.toFixed(2)}
+                    {formatInr(item.amount)}
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-[var(--glass)] border border-[var(--border)] overflow-hidden">

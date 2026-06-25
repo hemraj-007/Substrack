@@ -3,11 +3,19 @@
 import { useCallback, useState, useEffect } from "react";
 import { useFetch } from "@/hooks/useFetch";
 import { subscriptionsApi, getApiErrorMessage, type Subscription } from "@/lib/api";
+import { formatInr } from "@/lib/currency";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { GlassCard } from "@/components/GlassCard";
 import { LoadingState } from "@/components/Loader";
 import { Pagination } from "@/components/Pagination";
 import { PageHeaderCard } from "@/components/PageHeaderCard";
+import {
+  useCardFilterParams,
+  useCardFilterQueryKey,
+  useSelectedCardIds,
+} from "@/hooks/useCardFilter";
+import { formatCardShort } from "@/lib/cards";
 
 const PAGE_SIZE = 5;
 
@@ -27,14 +35,21 @@ export default function SubscriptionsPage() {
   const [detectMessage, setDetectMessage] = useState("");
   const [detectError, setDetectError] = useState("");
   const [page, setPage] = useState(1);
+  const cardKey = useCardFilterQueryKey();
+  const cardParams = useCardFilterParams();
+  const selectedCardIds = useSelectedCardIds();
 
   const fetcher = useCallback(
-    () => subscriptionsApi.list().then((r) => r.data),
-    []
+    () => subscriptionsApi.list(cardParams).then((r) => r.data),
+    [cardParams]
   );
   const { data: subscriptions = [], isLoading, isError, error, refetch } = useFetch(fetcher, {
-    deps: [],
+    deps: [cardKey],
   });
+  const { data: summary, refetch: refetchSummary } = useFetch(
+    () => subscriptionsApi.summary(cardParams).then((r) => r.data),
+    { deps: [cardKey] }
+  );
 
   async function handleDetect() {
     setDetecting(true);
@@ -43,7 +58,7 @@ export default function SubscriptionsPage() {
     try {
       const { data } = await subscriptionsApi.detect();
       const detectedCount = Array.isArray(data) ? data.length : 0;
-      await refetch();
+      await Promise.all([refetch(), refetchSummary()]);
       setDetectMessage(
         detectedCount > 0
           ? `Detected ${detectedCount} active subscription${detectedCount === 1 ? "" : "s"}.`
@@ -77,7 +92,9 @@ export default function SubscriptionsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, q]);
+  }, [statusFilter, q, cardKey]);
+
+  const showCardOnRows = selectedCardIds === null || selectedCardIds.length > 1;
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -137,6 +154,45 @@ export default function SubscriptionsPage() {
         </div>
       </PageHeaderCard>
 
+      {summary && summary.upcoming.next7Days.length > 0 && (
+        <GlassCard className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Renewing this week
+              </p>
+              <p className="text-xs text-[var(--muted)] mt-1">
+                {summary.upcoming.next7Days.length} charge
+                {summary.upcoming.next7Days.length === 1 ? "" : "s"} in the next 7 days
+              </p>
+            </div>
+            <Link
+              href="/dashboard"
+              className="text-xs text-[var(--accent-hover)] hover:text-[var(--foreground)] font-medium"
+            >
+              Full calendar →
+            </Link>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {summary.upcoming.next7Days.slice(0, 3).map((item) => (
+              <li
+                key={item.id}
+                className="flex justify-between gap-2 text-sm border-t border-[var(--border)] pt-2 first:border-0 first:pt-0"
+              >
+                <span className="truncate text-[var(--foreground)]">{item.merchant}</span>
+                <span className="shrink-0 text-[var(--muted)]">
+                  {formatInr(item.amount)} ·{" "}
+                  {new Date(item.nextCharge).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+
       {(detectMessage || detectError) && (
         <GlassCard className="p-4">
           <p
@@ -188,6 +244,11 @@ export default function SubscriptionsPage() {
                   <p className="font-semibold text-[var(--foreground)] tracking-wide truncate">
                     {sub.merchant ?? "—"}
                   </p>
+                  {showCardOnRows && sub.card && (
+                    <p className="text-xs text-[var(--muted)] mt-0.5">
+                      {formatCardShort(sub.card)}
+                    </p>
+                  )}
                   <p className="text-sm text-[var(--muted)]">
                     {new Intl.NumberFormat("en-IN", {
                       style: "currency",

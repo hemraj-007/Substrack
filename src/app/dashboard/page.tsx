@@ -94,6 +94,8 @@ export default function DashboardPage() {
       });
     }
     for (const tx of transactions) {
+      // Only count spend (money out); credits/refunds should not inflate the trend.
+      if (tx.type === "CREDIT") continue;
       const date = new Date(String(tx.date ?? ""));
       if (Number.isNaN(date.getTime())) continue;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;

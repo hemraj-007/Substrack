@@ -89,11 +89,14 @@ export const cardsApi = {
 };
 
 // Transactions
+export type TransactionType = "DEBIT" | "CREDIT";
+
 export type Transaction = {
   id: string;
   merchant?: string;
   description?: string;
   amount: number;
+  type?: TransactionType;
   currency: string;
   date: string;
   cardId: string;

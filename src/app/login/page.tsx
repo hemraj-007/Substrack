@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loading || !isAuthenticated) return;
-    router.replace("/home");
+    router.replace("/dashboard");
   }, [loading, isAuthenticated, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

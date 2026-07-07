@@ -1,76 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { useFetch } from "@/hooks/useFetch";
-import { alertsApi } from "@/lib/api";
+import { alertsApi, type Alert } from "@/lib/api";
 import { AlertItem } from "@/components/AlertItem";
-import { GlassCard } from "@/components/GlassCard";
 import { LoadingState } from "@/components/Loader";
-import { Pagination } from "@/components/Pagination";
-import { PageHeaderCard } from "@/components/PageHeaderCard";
+import { PageShell } from "@/components/ui/PageShell";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
-const PAGE_SIZE = 5;
+const GROUP_ORDER: Alert["type"][] = ["RENEWAL", "PRICE_HIKE", "UNUSED"];
+const GROUP_LABELS: Record<Alert["type"], string> = {
+  RENEWAL: "Renewals",
+  PRICE_HIKE: "Price increases",
+  UNUSED: "Unused subscriptions",
+};
 
 export default function AlertsPage() {
-  const [page, setPage] = useState(1);
   const { data: alerts = [], isLoading, error } = useFetch(
     () => alertsApi.list().then((r) => r.data),
     { deps: [] }
   );
 
-  if (isLoading) {
-    return (
-      <LoadingState
-        title="Loading alerts"
-      />
-    );
-  }
+  const grouped = useMemo(() => {
+    const map = new Map<Alert["type"], Alert[]>();
+    for (const type of GROUP_ORDER) map.set(type, []);
+    for (const alert of alerts ?? []) {
+      const bucket = map.get(alert.type) ?? [];
+      bucket.push(alert);
+      map.set(alert.type, bucket);
+    }
+    for (const [, items] of map) {
+      items.sort(
+        (a, b) =>
+          new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+      );
+    }
+    return map;
+  }, [alerts]);
 
+  if (isLoading) return <LoadingState title="Loading alerts" />;
   if (error) {
     return (
-      <GlassCard className="p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">
-        Failed to load alerts.
-      </GlassCard>
+      <div className="content-card p-6 text-red-600 text-sm">Failed to load alerts.</div>
     );
   }
 
-  const list = [...(alerts ?? [])].sort(
-    (a, b) =>
-      new Date(a.scheduledAt ?? 0).getTime() -
-      new Date(b.scheduledAt ?? 0).getTime()
-  );
-  const total = list.length;
-  const paginatedList = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const total = (alerts ?? []).length;
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <PageHeaderCard
-        variant="stacked"
-        title="Alerts"
-        description="Renewal reminders, unused subscription warnings, and future price hike alerts."
-        showIdentifier={false}
-        showDividers={false}
-      />
-
-      {list.length === 0 ? (
-        <GlassCard className="p-8 text-center">
-          <p className="text-[var(--muted)]">No alerts yet.</p>
-        </GlassCard>
+    <PageShell
+      title="Alerts"
+      description="Renewal reminders, unused subscription warnings, and price hike notices."
+    >
+      {total === 0 ? (
+        <EmptyState
+          title="No alerts yet"
+          description="Run subscription detection or wait for the daily renewal check after you have active subscriptions."
+        />
       ) : (
-        <>
-          <div className="space-y-3">
-            {paginatedList.map((alert) => (
-              <AlertItem key={alert.id} alert={alert} />
-            ))}
-          </div>
-          <Pagination
-            totalItems={total}
-            pageSize={PAGE_SIZE}
-            currentPage={page}
-            onPageChange={setPage}
-          />
-        </>
+        <div className="space-y-8">
+          {GROUP_ORDER.map((type) => {
+            const items = grouped.get(type) ?? [];
+            if (items.length === 0) return null;
+            return (
+              <section key={type}>
+                <SectionHeader title={GROUP_LABELS[type]} />
+                <div className="space-y-3">
+                  {items.map((alert) => (
+                    <AlertItem key={alert.id} alert={alert} />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       )}
-    </div>
+    </PageShell>
   );
 }

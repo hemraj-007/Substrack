@@ -1,23 +1,73 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useFetch } from "@/hooks/useFetch";
-import { subscriptionsApi, transactionsApi } from "@/lib/api";
 import Link from "next/link";
-import { GlassCard, CardHeader } from "@/components/GlassCard";
+import { motion } from "framer-motion";
+import { useFetch } from "@/hooks/useFetch";
+import { useAuth } from "@/hooks/useAuth";
+import { subscriptionsApi, transactionsApi } from "@/lib/api";
 import { LoadingState } from "@/components/Loader";
-import { PageHeaderCard } from "@/components/PageHeaderCard";
-import { RenewalCalendar } from "@/components/RenewalCalendar";
+import { CardFilter } from "@/components/CardFilter";
 import { formatInr } from "@/lib/currency";
+import { categorizeMerchant } from "@/lib/categories";
 import { useCardFilterParams, useCardFilterQueryKey } from "@/hooks/useCardFilter";
+import { CategoryDonutChart } from "@/components/ui/CategoryDonutChart";
+import { DashboardHeader, type DateRange } from "@/components/dashboard/DashboardHeader";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { DashboardSpendChart } from "@/components/dashboard/DashboardSpendChart";
+import { DashboardBarChart } from "@/components/dashboard/DashboardBarChart";
+import { RenewalsTimeline } from "@/components/dashboard/RenewalsTimeline";
+import { TransactionsPanel } from "@/components/dashboard/TransactionsPanel";
+import { SubscriptionsGrid } from "@/components/dashboard/SubscriptionsGrid";
+import { AiInsightsPanel } from "@/components/dashboard/AiInsightsPanel";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { DashCard } from "@/components/dashboard/DashCard";
 
-const FILTERS = [
-  { value: "all", label: "All" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "AT_RISK", label: "At risk" },
-] as const;
+const DONUT_COLORS: Record<string, string> = {
+  Entertainment: "#8B5CF6",
+  Shopping: "#F59E0B",
+  "AI Tools": "#5B5CEB",
+  Utilities: "#22C55E",
+  Other: "#94A3B8",
+};
 
-function useDashboardStats() {
+function displayCategory(merchant: string): string {
+  const cat = categorizeMerchant(merchant);
+  if (cat === "Streaming") return "Entertainment";
+  if (cat === "Productivity") return "AI Tools";
+  if (cat === "Food") return "Other";
+  return cat;
+}
+
+function inDateRange(dateStr: string, range: DateRange): boolean {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  if (range === "today") {
+    return date.toDateString() === now.toDateString();
+  }
+  if (range === "month") {
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  }
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 30);
+  return date >= cutoff;
+}
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
+
+export default function DashboardPage() {
+  const { user } = useAuth();
+  const displayName = user?.email?.split("@")[0] ?? "there";
+  const [range, setRange] = useState<DateRange>("30d");
   const cardKey = useCardFilterQueryKey();
   const cardParams = useCardFilterParams();
 
@@ -29,356 +79,200 @@ function useDashboardStats() {
     () => subscriptionsApi.list(cardParams).then((r) => r.data),
     { deps: [cardKey] }
   );
-  const tx = useFetch(
-    () => transactionsApi.list().then((r) => r.data),
-    { deps: [] }
-  );
+  const tx = useFetch(() => transactionsApi.list().then((r) => r.data), { deps: [] });
 
-  const selectedIds =
-    cardParams?.cardIds?.split(",").filter(Boolean) ?? null;
-
+  const selectedIds = cardParams?.cardIds?.split(",").filter(Boolean) ?? null;
   const subscriptions = subs.data ?? [];
-  const transactions = (tx.data ?? []).filter((row) => {
+  const allTransactions = (tx.data ?? []).filter((row) => {
     if (!selectedIds?.length) return true;
     return selectedIds.includes(String(row.cardId ?? ""));
   });
 
-  const atRiskList = subscriptions.filter(
-    (s) => (s.status ?? "").toUpperCase() === "AT_RISK"
+  const transactions = useMemo(
+    () => allTransactions.filter((t) => inDateRange(String(t.date ?? ""), range)),
+    [allTransactions, range]
   );
-  const atRisk = atRiskList.length;
-  const potentialSavings =
-    atRiskList.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) || 0;
 
+  const atRiskList = subscriptions.filter((s) => (s.status ?? "").toUpperCase() === "AT_RISK");
+  const potentialSavings = atRiskList.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
   const monthlySpend = summary.data?.monthlyTotal ?? 0;
   const activeSubscriptions = summary.data?.activeCount ?? 0;
-
-  return {
-    summary: summary.data,
-    subscriptions,
-    transactions,
-    monthlySpend,
-    activeSubscriptions,
-    atRiskSubscriptions: atRisk,
-    potentialSavings,
-    loading: summary.isLoading || subs.isLoading || tx.isLoading,
-    error: summary.error || subs.error || tx.error,
-  };
-}
-
-export default function DashboardPage() {
-  const {
-    summary,
-    monthlySpend,
-    activeSubscriptions,
-    atRiskSubscriptions,
-    potentialSavings,
-    subscriptions,
-    transactions,
-    loading,
-    error,
-  } = useDashboardStats();
-  const [filter, setFilter] = useState<"all" | "ACTIVE" | "AT_RISK">("all");
-  const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
+  const renewalsThisMonth = summary.data?.upcoming.next30Days.length ?? 0;
 
   const trend = useMemo(() => {
     const now = new Date();
-    const months: { key: string; label: string; amount: number }[] = [];
+    const months: { label: string; value: number }[] = [];
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      months.push({
-        key,
-        label: d.toLocaleString("default", { month: "short" }),
-        amount: 0,
-      });
+      months.push({ label: d.toLocaleString("default", { month: "short" }), value: 0 });
     }
-    for (const tx of transactions) {
-      // Only count spend (money out); credits/refunds should not inflate the trend.
-      if (tx.type === "CREDIT") continue;
-      const date = new Date(String(tx.date ?? ""));
+    const keys = months.map((_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    });
+    for (const t of allTransactions) {
+      if (t.type === "CREDIT") continue;
+      const date = new Date(String(t.date ?? ""));
       if (Number.isNaN(date.getTime())) continue;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const row = months.find((m) => m.key === key);
-      if (row) row.amount += Number(tx.amount) || 0;
+      const idx = keys.indexOf(key);
+      if (idx >= 0) months[idx]!.value += Number(t.amount) || 0;
     }
     return months;
-  }, [transactions]);
+  }, [allTransactions]);
 
-  const categoryBreakdown = useMemo(() => {
-    const buckets = {
-      Streaming: 0,
-      Productivity: 0,
-      Shopping: 0,
-      Utilities: 0,
-      Other: 0,
-    };
+  const spendDelta = useMemo(() => {
+    if (trend.length < 2) return null;
+    const prev = trend[trend.length - 2]!.value;
+    const curr = trend[trend.length - 1]!.value;
+    if (prev === 0) return null;
+    const pct = Math.round(((curr - prev) / prev) * 100);
+    return pct;
+  }, [trend]);
+
+  const categoryData = useMemo(() => {
+    const buckets: Record<string, number> = {};
     for (const sub of subscriptions) {
       if ((sub.status ?? "").toUpperCase() !== "ACTIVE") continue;
-      const merchant = String(sub.merchant ?? "").toLowerCase();
-      const amount = Number(sub.amount) || 0;
-      if (/netflix|spotify|prime|disney|hulu|youtube/.test(merchant)) {
-        buckets.Streaming += amount;
-      } else if (/notion|adobe|figma|canva|github|slack|zoom|chatgpt/.test(merchant)) {
-        buckets.Productivity += amount;
-      } else if (/amazon|flipkart|instacart|walmart|shopping/.test(merchant)) {
-        buckets.Shopping += amount;
-      } else if (/icloud|google one|dropbox|vpn|internet|cloud/.test(merchant)) {
-        buckets.Utilities += amount;
-      } else {
-        buckets.Other += amount;
-      }
+      const cat = displayCategory(String(sub.merchant ?? ""));
+      buckets[cat] = (buckets[cat] ?? 0) + (Number(sub.amount) || 0);
     }
-
-    return Object.entries(buckets)
-      .map(([name, amount]) => ({ name, amount }))
-      .filter((d) => d.amount > 0)
-      .sort((a, b) => b.amount - a.amount);
+    return Object.entries(buckets).map(([name, value]) => ({
+      name,
+      value,
+      color: DONUT_COLORS[name] ?? "#94A3B8",
+    }));
   }, [subscriptions]);
 
-  const maxTrendAmount = Math.max(...trend.map((d) => d.amount), 1);
-  const maxCategory = Math.max(...categoryBreakdown.map((d) => d.amount), 1);
-  const avgMonthly =
-    trend.reduce((sum, point) => sum + point.amount, 0) / Math.max(trend.length, 1);
+  const barData = useMemo(() => trend.slice(-6), [trend]);
 
-  if (loading) {
+  const loading = summary.isLoading || subs.isLoading || tx.isLoading;
+  const error = summary.error || subs.error || tx.error;
+
+  if (loading) return <LoadingState title="Loading dashboard" />;
+  if (error) {
     return (
-      <LoadingState
-        title="Loading dashboard"
-      />
+      <DashCard className="p-6 text-red-500 text-sm" hover={false}>
+        Failed to load dashboard. Please try again.
+      </DashCard>
     );
   }
 
-  if (error) {
+  const upcoming = summary.data?.upcoming.next30Days.slice(0, 4) ?? [];
+
+  if (subscriptions.length === 0) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 dark:bg-red-950/30 p-4 text-red-700 dark:text-red-300 glass-card">
-        Failed to load dashboard. Please try again.
-      </div>
+      <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
+        <motion.div variants={fadeUp}>
+          <DashboardHeader name={displayName} range={range} onRangeChange={setRange} />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <CardFilter />
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <DashCard className="p-12 sm:p-16 text-center" hover={false}>
+            <div className="w-16 h-16 rounded-2xl bg-violet-50 text-[#5B5CEB] flex items-center justify-center text-3xl mx-auto mb-6">
+              📊
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900">No subscriptions detected yet</h2>
+            <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+              Upload a bank statement to automatically find recurring charges and build your dashboard.
+            </p>
+            <Link href="/dashboard/upload" className="dash-btn-primary inline-flex mt-8 px-6 py-3 text-sm font-semibold">
+              Upload Statement
+            </Link>
+          </DashCard>
+        </motion.div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <PageHeaderCard
-        variant="stacked"
-        title="Financial Command Center"
-        description="Monitor recurring spend, identify risky renewals, and surface savings opportunities in one place."
-        showIdentifier={false}
-        showDividers={false}
-      >
-        {FILTERS.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setFilter(value)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              filter === value ? "pill-active" : "pill-inactive"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </PageHeaderCard>
+    <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
+      <motion.div variants={fadeUp}>
+        <DashboardHeader name={displayName} range={range} onRangeChange={setRange} />
+      </motion.div>
 
-      {summary && (
-        <GlassCard className="p-4 sm:p-6 border-[var(--accent)]/20 bg-gradient-to-br from-[var(--glass)] to-[var(--card)]">
-          <p className="text-lg sm:text-xl font-bold text-[var(--foreground)] leading-snug">
-            {summary.headline}
-          </p>
-          {summary.upcoming.next7Days.length > 0 && (
-            <p className="text-sm text-[var(--muted)] mt-2">
-              {summary.upcoming.next7Days.length} renewal
-              {summary.upcoming.next7Days.length === 1 ? "" : "s"} in the next 7 days
-            </p>
-          )}
-        </GlassCard>
-      )}
+      <motion.div variants={fadeUp}>
+        <CardFilter />
+      </motion.div>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-        <GlassCard className="metric-card p-4 sm:p-6">
-          <p className="text-sm text-[var(--muted)]">Monthly Subscription Spend</p>
-          <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            {formatInr(monthlySpend)}
-          </p>
-          <p className="text-xs text-[var(--muted)] mt-1 sm:mt-2">Active subscriptions only</p>
-        </GlassCard>
-        <GlassCard className="metric-card p-4 sm:p-6">
-          <p className="text-sm text-[var(--muted)]">Active Subscriptions</p>
-          <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            {activeSubscriptions}
-          </p>
-          <Link
-            href="/dashboard/subscriptions"
-            className="mt-1 sm:mt-2 inline-block text-xs text-[var(--accent-hover)] hover:text-[var(--foreground)]"
-          >
-            View subscriptions
-          </Link>
-        </GlassCard>
-        <GlassCard className="metric-card p-4 sm:p-6">
-          <p className="text-sm text-[var(--muted)]">At-Risk Subscriptions</p>
-          <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            {atRiskSubscriptions}
-          </p>
-          {atRiskSubscriptions > 0 && (
-            <Link
-              href="/dashboard/subscriptions?filter=AT_RISK"
-              className="inline-block mt-1 sm:mt-2 text-xs text-amber-300 hover:text-amber-100"
-            >
-              Review →
-            </Link>
-          )}
-        </GlassCard>
-        <GlassCard className="metric-card p-4 sm:p-6">
-          <p className="text-sm text-[var(--muted)]">Potential Savings</p>
-          <p className="mt-1 sm:mt-2 text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
-            {formatInr(potentialSavings)}
-          </p>
-          <p className="text-xs text-[var(--muted)] mt-1 sm:mt-2">
-            Estimated from at-risk recurring charges
-          </p>
-        </GlassCard>
-      </div>
+      <motion.div variants={fadeUp} className="grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Monthly Spend"
+          value={formatInr(monthlySpend)}
+          comparison={spendDelta != null ? `${spendDelta >= 0 ? "↑" : "↓"}${Math.abs(spendDelta)}% vs last month` : undefined}
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Subscriptions"
+          value={activeSubscriptions}
+          comparison="Active recurring"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Upcoming Renewals"
+          value={renewalsThisMonth}
+          comparison="Next 30 days"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          }
+        />
+        <KpiCard
+          label="Potential Savings"
+          value={formatInr(potentialSavings)}
+          comparison="From at-risk subs"
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          }
+        />
+      </motion.div>
 
-      {summary && (
-        <GlassCard className="p-4 sm:p-6">
-          <CardHeader
-            title="Renewal calendar"
-            viewAllHref="/dashboard/subscriptions"
-          />
-          <p className="text-sm text-[var(--muted)] mb-4 -mt-2">
-            Upcoming charges based on detected billing cycles
-          </p>
-          <RenewalCalendar
-            next7Days={summary.upcoming.next7Days}
-            next30Days={summary.upcoming.next30Days}
-          />
-        </GlassCard>
-      )}
+      <motion.div variants={fadeUp} className="grid gap-6 grid-cols-1 xl:grid-cols-3">
+        <DashCard className="p-6 xl:col-span-2">
+          <h2 className="text-base font-semibold text-slate-900 mb-4">Spending Overview</h2>
+          <DashboardSpendChart data={trend} />
+        </DashCard>
+        <DashCard className="p-6">
+          <h2 className="text-base font-semibold text-slate-900 mb-4">Categories</h2>
+          <CategoryDonutChart data={categoryData} />
+        </DashCard>
+      </motion.div>
 
-      <div className="grid gap-4 grid-cols-1 xl:grid-cols-3">
-        <GlassCard className="p-4 sm:p-6 xl:col-span-2">
-          <CardHeader title="Subscription Spend Trend" viewAllHref="/dashboard/transactions" />
-          <div className="space-y-3 sm:space-y-4">
-            <div className="animate-chart rounded-xl sm:rounded-2xl border border-[var(--border)] bg-[var(--card)] backdrop-blur-sm p-3 sm:p-4 overflow-x-auto">
-              <svg viewBox="0 0 640 220" className="w-full min-w-[280px] h-[180px] sm:h-[220px]">
-                <defs>
-                  <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="var(--accent)" />
-                    <stop offset="100%" stopColor="var(--accent-2)" />
-                  </linearGradient>
-                </defs>
-                {trend.map((point, index) => {
-                  const x = 24 + index * 118;
-                  const y = 180 - (point.amount / maxTrendAmount) * 130;
-                  return (
-                    <g key={point.key}>
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r="6"
-                        fill="url(#lineGradient)"
-                        className="cursor-pointer"
-                        onMouseEnter={() => setHoveredMonth(point.key)}
-                        onMouseLeave={() => setHoveredMonth(null)}
-                      />
-                      <text x={x} y={206} textAnchor="middle" fill="var(--muted)" fontSize="12">
-                        {point.label}
-                      </text>
-                    </g>
-                  );
-                })}
-                <polyline
-                  fill="none"
-                  stroke="url(#lineGradient)"
-                  strokeWidth="4"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  points={trend
-                    .map((point, index) => {
-                      const x = 24 + index * 118;
-                      const y = 180 - (point.amount / maxTrendAmount) * 130;
-                      return `${x},${y}`;
-                    })
-                    .join(" ")}
-                />
-              </svg>
-            </div>
-            <div className="text-xs text-[var(--muted)]">
-              {hoveredMonth
-                ? (() => {
-                    const point = trend.find((t) => t.key === hoveredMonth);
-                    return point
-                      ? `${point.label}: ${formatInr(point.amount)} total card spend`
-                      : "Hover over a point to inspect month-by-month spend.";
-                  })()
-                : "Hover over a point to inspect month-by-month spend."}
-            </div>
-          </div>
-        </GlassCard>
+      <motion.div variants={fadeUp} className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <RenewalsTimeline items={upcoming} />
+          <DashCard className="p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Spend Trend</h2>
+            <DashboardBarChart data={barData} />
+          </DashCard>
+        </div>
+        <AiInsightsPanel savingsAmount={potentialSavings} />
+      </motion.div>
 
-        <GlassCard className="p-4 sm:p-6">
-          <CardHeader title="Contextual Insights" viewAllHref="/dashboard/alerts" />
-          <div className="space-y-3 sm:space-y-4 text-sm">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
-              <p className="text-[var(--muted)]">Average monthly card spend</p>
-              <p className="mt-1 text-xl font-bold text-[var(--foreground)]">
-                {formatInr(avgMonthly)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
-              <p className="text-[var(--muted)]">Renewals in next 7 days</p>
-              <p className="mt-1 text-xl font-bold text-[var(--foreground)]">
-                {summary?.upcoming.next7Days.length ?? 0}
-              </p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm p-3">
-              <p className="text-[var(--muted)]">Recommended actions</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Link
-                  href="/dashboard/subscriptions?filter=AT_RISK"
-                  className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--glass-hover)]"
-                >
-                  Review at-risk
-                </Link>
-                <Link
-                  href="/dashboard/upload"
-                  className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-[var(--glass-hover)]"
-                >
-                  Upload latest CSV
-                </Link>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
+      <motion.div variants={fadeUp}>
+        <TransactionsPanel transactions={transactions} />
+      </motion.div>
 
-      <GlassCard className="p-4 sm:p-6">
-        <CardHeader title="Subscription Categories" viewAllHref="/dashboard/subscriptions" />
-        {categoryBreakdown.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">
-            No category data yet. Detect subscriptions to see allocation.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {categoryBreakdown.map((item) => (
-              <div key={item.name} className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-[var(--foreground)]">{item.name}</span>
-                  <span className="font-semibold text-[var(--foreground)]">
-                    {formatInr(item.amount)}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-[var(--glass)] border border-[var(--border)] overflow-hidden">
-                  <div
-                    className="h-full animate-chart bg-gradient-to-r from-[var(--accent)] to-[var(--chart-purple)]"
-                    style={{ width: `${(item.amount / maxCategory) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </GlassCard>
-    </div>
+      <motion.div variants={fadeUp}>
+        <SubscriptionsGrid subscriptions={subscriptions} />
+      </motion.div>
+
+      <motion.div variants={fadeUp}>
+        <QuickActions />
+      </motion.div>
+    </motion.div>
   );
 }

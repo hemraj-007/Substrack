@@ -1,118 +1,130 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useFetch } from "@/hooks/useFetch";
 import { cardsApi, transactionsApi, getApiErrorMessage } from "@/lib/api";
 import { FileUpload } from "@/components/FileUpload";
-import { GlassCard } from "@/components/GlassCard";
 import { LoadingState } from "@/components/Loader";
-import { PageHeaderCard } from "@/components/PageHeaderCard";
+import { PageShell } from "@/components/ui/PageShell";
+
+const BANKS = ["HDFC", "ICICI", "SBI", "Axis", "Kotak", "Yes Bank"];
 
 export default function UploadPage() {
+  const router = useRouter();
   const { data: cards = [], isLoading } = useFetch(
     () => cardsApi.list().then((r) => r.data),
     { deps: [] }
   );
   const [cardId, setCardId] = useState("");
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number | undefined>(undefined);
-  const [result, setResult] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  const runUpload = useCallback(async (selectedCardId: string, file: File) => {
-    setError("");
-    setResult(null);
-    setUploading(true);
-    setProgress(50);
-    try {
-      const { data } = await transactionsApi.upload(selectedCardId, file);
-      setProgress(100);
-      setResult(data.imported);
-      setPendingFile(null);
-    } catch (err: unknown) {
-      setError(getApiErrorMessage(err, { context: "upload", defaultMessage: "Upload failed." }));
-    } finally {
-      setUploading(false);
-      setProgress(undefined);
-    }
-  }, []);
+  const runUpload = useCallback(
+    async (selectedCardId: string, file: File) => {
+      setError("");
+      setUploading(true);
+      setProgress(40);
+      try {
+        const { data } = await transactionsApi.upload(selectedCardId, file);
+        setProgress(100);
+        router.push(
+          `/dashboard/upload/processing?cardId=${encodeURIComponent(selectedCardId)}&imported=${data.imported}`
+        );
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, { context: "upload", defaultMessage: "Upload failed." }));
+        setUploading(false);
+        setProgress(undefined);
+      }
+    },
+    [router]
+  );
 
   async function handleFile(file: File) {
     if (!cardId) {
-      setPendingFile(file);
       setError("Select a card first.");
       return;
     }
     await runUpload(cardId, file);
   }
 
-  function handleCardChange(nextCardId: string) {
-    setCardId(nextCardId);
-    if (!nextCardId) return;
-    setError("");
-    if (pendingFile) {
-      const file = pendingFile;
-      setPendingFile(null);
-      void runUpload(nextCardId, file);
-    }
-  }
+  if (isLoading) return <LoadingState title="Loading" />;
 
-  if (isLoading) {
-    return (
-      <LoadingState
-        title="Loading upload"
-      />
-    );
-  }
-
-  const cardList = (cards ?? []) as { id: string; last4: string }[];
+  const cardList = cards ?? [];
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <PageHeaderCard
-        variant="stacked"
-        title="Upload transactions"
-        description="Upload a CSV or PDF statement. Select the card these transactions belong to."
-        showIdentifier={false}
-        showDividers={false}
-      />
-
-      <GlassCard className="p-4 sm:p-6 max-w-xl w-full space-y-4">
-        <div>
-          <label htmlFor="card" className="block text-sm font-medium text-[var(--foreground)] mb-1">
-            Card
+    <PageShell
+      title="Statements"
+      description="Upload a CSV or PDF bank statement to import transactions."
+      actions={
+        <Link
+          href="/dashboard/transactions"
+          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium hover:bg-[var(--surface-muted)]"
+        >
+          View transactions
+        </Link>
+      }
+    >
+      <div className="max-w-xl mx-auto space-y-6">
+        <div className="content-card p-4">
+          <label htmlFor="card" className="block text-sm font-medium mb-2">
+            Card for this statement
           </label>
           <select
             id="card"
             value={cardId}
-            onChange={(e) => handleCardChange(e.target.value)}
+            onChange={(e) => {
+              setCardId(e.target.value);
+              setError("");
+            }}
             className="surface-input w-full px-3 py-2.5"
           >
             <option value="">Select a card</option>
             {cardList.map((c) => (
-              <option key={c.id} value={c.id}>•••• {c.last4}</option>
+              <option key={c.id} value={c.id}>
+                •••• {c.last4}
+                {c.bankName ? ` · ${c.bankName}` : ""}
+              </option>
             ))}
           </select>
         </div>
 
-        <FileUpload
-          accept=".csv,.pdf,application/pdf,text/csv"
-          onFileSelect={handleFile}
-          uploading={uploading}
-          progress={progress}
-          label="Choose CSV or PDF file"
-        />
+        <div className="content-card p-8 text-center">
+          <FileUpload
+            accept=".csv,.pdf,application/pdf,text/csv"
+            onFileSelect={handleFile}
+            uploading={uploading}
+            progress={progress}
+            label="Drag & drop your statement here"
+          />
+          <p className="text-xs text-[var(--muted)] mt-4">
+            Supports PDF and CSV from major Indian banks
+          </p>
+        </div>
 
-        {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        )}
-        {result != null && (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            Imported {result} transaction(s).
+        <div className="flex flex-wrap justify-center gap-3">
+          {BANKS.map((bank) => (
+            <span
+              key={bank}
+              className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--muted)]"
+            >
+              {bank}
+            </span>
+          ))}
+        </div>
+
+        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+        {cardList.length === 0 && (
+          <p className="text-sm text-center text-[var(--muted)]">
+            <Link href="/dashboard/cards" className="text-[var(--accent)] hover:underline">
+              Add a card
+            </Link>{" "}
+            before uploading.
           </p>
         )}
-      </GlassCard>
-    </div>
+      </div>
+    </PageShell>
   );
 }

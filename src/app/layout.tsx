@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { Providers } from "@/components/Providers";
-import { Outfit } from "next/font/google";
+import { Inter } from "next/font/google";
 
-const outfit = Outfit({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
   variable: "--font-sans",
 });
 
 export const metadata: Metadata = {
-  title: "Subscription Guardian",
-  description: "Track cards, transactions, and recurring subscriptions with renewal and unused alerts.",
+  title: "SubTrack — Track every subscription",
+  description:
+    "Upload bank statements, detect recurring charges, and never miss a renewal. AI-powered subscription tracking for India.",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${outfit.variable} antialiased min-h-screen bg-[var(--background)] text-[var(--foreground)]`}
+        className={`${inter.variable} antialiased min-h-screen bg-[var(--background)] text-[var(--foreground)]`}
         suppressHydrationWarning
       >
         <Providers>{children}</Providers>

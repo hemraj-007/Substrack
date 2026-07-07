@@ -163,6 +163,7 @@ export type SubscriptionSummary = {
 export const subscriptionsApi = {
   list: (params?: SubscriptionListParams) =>
     api.get<Subscription[]>("/api/subscriptions", { params }),
+  get: (id: string) => api.get<Subscription>(`/api/subscriptions/${id}`),
   summary: (params?: SubscriptionListParams) =>
     api.get<SubscriptionSummary>("/api/subscriptions/summary", { params }),
   detect: () =>

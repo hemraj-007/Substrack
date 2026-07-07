@@ -1,118 +1,151 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useFetch } from "@/hooks/useFetch";
-import { transactionsApi, type Transaction } from "@/lib/api";
-import { GlassCard } from "@/components/GlassCard";
+import { transactionsApi, subscriptionsApi, type Transaction } from "@/lib/api";
 import { LoadingState } from "@/components/Loader";
+import { PageShell } from "@/components/ui/PageShell";
+import { DataTable } from "@/components/ui/DataTable";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination } from "@/components/Pagination";
-import { PageHeaderCard } from "@/components/PageHeaderCard";
+import { formatInr } from "@/lib/currency";
+import { categorizeMerchant } from "@/lib/categories";
+import { getMerchantBrand } from "@/lib/merchantLogos";
+import { cardsApi } from "@/lib/api";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function TransactionsPage() {
   const searchParams = useSearchParams();
   const q = (searchParams.get("q") ?? "").trim().toLowerCase();
   const [page, setPage] = useState(1);
 
-  const fetcher = useCallback(
-    () => transactionsApi.list().then((r) => r.data),
-    []
+  const fetcher = useCallback(() => transactionsApi.list().then((r) => r.data), []);
+  const { data: transactions = [], isLoading } = useFetch(fetcher, { deps: [] });
+  const { data: subscriptions = [] } = useFetch(
+    () => subscriptionsApi.list().then((r) => r.data),
+    { deps: [] }
   );
-  const { data: transactions = [], isLoading } = useFetch(fetcher, {
-    deps: [],
-  });
+  const { data: cards = [] } = useFetch(() => cardsApi.list().then((r) => r.data), { deps: [] });
 
-  const filtered = q
-    ? (transactions ?? []).filter((t) => {
+  const cardMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cards ?? []) m.set(c.id, c.last4);
+    return m;
+  }, [cards]);
+
+  const recurringKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of subscriptions ?? []) {
+      set.add(`${s.cardId}:${(s.merchant ?? "").toLowerCase()}`);
+    }
+    return set;
+  }, [subscriptions]);
+
+  const filtered = useMemo(() => {
+    let list = [...(transactions ?? [])];
+    if (q) {
+      list = list.filter((t) => {
         const merchant = (t.merchant ?? "").toLowerCase();
-        const desc = (t.description ?? "").toLowerCase();
-        const amount = String(t.amount ?? "");
-        return merchant.includes(q) || desc.includes(q) || amount.includes(q);
-      })
-    : transactions ?? [];
+        return merchant.includes(q) || String(t.amount).includes(q);
+      });
+    }
+    return list.sort(
+      (a, b) => new Date(String(b.date)).getTime() - new Date(String(a.date)).getTime()
+    );
+  }, [transactions, q]);
 
-  const list = [...filtered].sort((a, b) => {
-    const da = new Date((a as Transaction).date).getTime();
-    const db = new Date((b as Transaction).date).getTime();
-    return db - da;
-  });
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const total = list.length;
-  const paginatedList = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  useEffect(() => {
-    setPage(1);
-  }, [q]);
+  useEffect(() => setPage(1), [q]);
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <PageHeaderCard
-        variant="stacked"
-        title="Transactions"
-        description="All transactions from your uploaded CSV files."
-        showIdentifier={false}
-        showDividers={false}
-      />
-
+    <PageShell
+      title="Transactions"
+      description="All transactions from your uploaded statements."
+    >
       {isLoading ? (
-        <LoadingState
-          title="Loading transactions"
-        />
-      ) : list.length === 0 ? (
-        <GlassCard className="p-8 text-center">
-          <p className="text-[var(--muted)]">
-            No transactions yet. Upload a CSV from the Upload page.
-          </p>
-        </GlassCard>
+        <LoadingState title="Loading transactions" />
       ) : (
         <>
-          <div className="space-y-3">
-            {paginatedList.map((tx) => {
-            const t = tx as Transaction;
-            const merchant = t.merchant ?? t.description ?? "—";
-            const date = t.date ? new Date(t.date).toLocaleDateString() : "—";
-            const amount = Number(t.amount);
-            const currency = t.currency ?? "INR";
-            const formatted =
-              currency === "INR"
-                ? `₹${amount.toLocaleString("en-IN")}`
-                : `${currency} ${amount.toFixed(2)}`;
-            return (
-              <GlassCard
-                key={t.id}
-                className="row-glass p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 sm:gap-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-[var(--foreground)] tracking-wide truncate">
-                    {merchant}
-                  </p>
-                  <p className="text-xs sm:text-sm text-[var(--muted)]">
-                    {formatted} · {date}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                    amount > 1000
-                      ? "border-rose-300 bg-rose-50 text-rose-800"
-                      : "border-emerald-300 bg-emerald-50 text-emerald-800"
-                  }`}
-                >
-                  {amount > 1000 ? "High charge" : "Normal"}
-                </span>
-              </GlassCard>
-            );
-          })}
-          </div>
+          <DataTable
+            columns={[
+              {
+                key: "merchant",
+                header: "Merchant",
+                cell: (t: Transaction) => {
+                  const brand = getMerchantBrand(String(t.merchant ?? ""));
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                        style={{ backgroundColor: brand.bg, color: brand.color }}
+                      >
+                        {brand.initial}
+                      </span>
+                      <span className="font-medium">{t.merchant ?? "—"}</span>
+                    </div>
+                  );
+                },
+              },
+              {
+                key: "date",
+                header: "Date",
+                cell: (t) =>
+                  new Date(String(t.date)).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }),
+              },
+              {
+                key: "amount",
+                header: "Amount",
+                cell: (t) => formatInr(Number(t.amount)),
+              },
+              {
+                key: "category",
+                header: "Category",
+                cell: (t) => categorizeMerchant(String(t.merchant ?? "")),
+              },
+              {
+                key: "card",
+                header: "Card",
+                cell: (t) => `•••• ${cardMap.get(t.cardId) ?? "—"}`,
+              },
+              {
+                key: "type",
+                header: "Type",
+                cell: (t) => {
+                  const key = `${t.cardId}:${String(t.merchant ?? "").toLowerCase()}`;
+                  const recurring = recurringKeys.has(key);
+                  return recurring ? "Recurring" : "One-time";
+                },
+              },
+              {
+                key: "status",
+                header: "Status",
+                cell: (t) => (
+                  <StatusBadge
+                    variant={Number(t.amount) > 1000 ? "high" : "normal"}
+                    label={Number(t.amount) > 1000 ? "High" : "Normal"}
+                  />
+                ),
+              },
+            ]}
+            data={paginated}
+            keyFn={(t) => t.id}
+            emptyMessage="No transactions yet. Upload a statement from Statements."
+          />
           <Pagination
-            totalItems={total}
+            totalItems={filtered.length}
             pageSize={PAGE_SIZE}
             currentPage={page}
             onPageChange={setPage}
           />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

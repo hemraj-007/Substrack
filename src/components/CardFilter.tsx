@@ -32,7 +32,7 @@ export function CardFilter() {
         : `${selectedCardIds.length} cards`;
 
   return (
-    <div className="mb-4 sm:mb-6 rounded-2xl border border-[var(--border)] bg-[var(--glass)] backdrop-blur-sm px-3 py-3 sm:px-4 sm:py-4">
+    <div className="mb-4 rounded-2xl border border-[#ECECF6] bg-white/70 backdrop-blur-sm px-4 py-3 shadow-[0_10px_40px_rgba(91,92,235,0.06)]">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
           Filter by card
